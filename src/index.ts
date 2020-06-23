@@ -9,22 +9,22 @@ export interface ParserOptions {
 	blacklist?: string[]; // list of fields disallowed to be in the filter
 	casters?: { [key: string]: (val: string) => any };
 	castParams?: { [key: string]: string };
+	populatelist?: { [key: string]: string };
 	collection?: string;
 	// rename the keys
-	selectKey?: string;
-	//populateKey?: string;
+	fieldsKey?: string;
+	populateKey?: string;
 	sortKey?: string;
 	limitKey?: string;
 	filterKey?: string;
-	leanKey?: string;
 }
 
 export interface QueryOptions {
 	filter: any;
 	sort?: string | Record<string, any>; // ie.: { field: 1, field2: -1 }
 	limit?: string;
-	select?: string | Record<string, any>; // ie.: { field: 0, field2: 0 }
-	//populate?: string | Record<string, any>; // path(s) to populate:  a space delimited string of the path names or array like: [{path: 'field1', select: 'p1 p2'}, ...]
+	fields?: string | Record<string, any>; // ie.: { field: 0, field2: 0 }
+	populate?: { path: string; fields: string[] }[]; // path(s) to populate:  string array of path names or array like: [{path: 'model1', fields: ['p1', 'p2']}, ...]
 }
 
 export class ArangoDbQueryParser {
@@ -43,8 +43,8 @@ export class ArangoDbQueryParser {
 	};
 
 	private readonly _operators = [
-		{ operator: 'select', method: this.castSelect, defaultKey: 'select' },
-		//{ operator: 'populate', method: this.castPopulate, defaultKey: 'populate' },
+		{ operator: 'fields', method: this.castFields, defaultKey: 'fields' },
+		{ operator: 'populate', method: this.castPopulate, defaultKey: 'populate' },
 		{ operator: 'sort', method: this.castSort, defaultKey: 'sort' },
 		{ operator: 'limit', method: this.castLimit, defaultKey: 'limit' },
 		{ operator: 'filter', method: this.castFilter, defaultKey: 'filter' },
@@ -74,7 +74,7 @@ export class ArangoDbQueryParser {
 		const params = _.isString(query) ? qs.parse(query) : query;
 		const options = this._options;
 		let result = {
-			select: 'o',
+			fields: 'o',
 		};
 
 		this._operators.forEach(({ operator, method, defaultKey }) => {
@@ -102,13 +102,41 @@ export class ArangoDbQueryParser {
 		return this.createQuery(result);
 	}
 
+	/**
+	 * create AQL query from QueryOptions
+	 * 
+	 * @param qo QueryOptions
+	 * @return {string} AQL query
+	 */
 	createQuery(qo: QueryOptions): string {
 		const options = this._options;
 		let result = 'FOR o IN ' + options.collection;
 		result += qo.filter.filters ? ' ' + qo.filter.filters : '';
 		result += qo.sort ? ' ' + qo.sort : '';
 		result += qo.limit ? ' ' + qo.limit : '';
-		result += ' RETURN ' + qo.select;
+		let ret = qo.fields;
+		if (qo.populate && options.populatelist) {
+			qo.populate.forEach(({ path, fields }) => {
+				const target = options.populatelist[path];
+				if (target) {
+					if (ret == qo.fields) {
+						ret = 'MERGE(' + qo.fields;
+					}
+					const select = fields
+						? fields.reduce((prev, curr, _i, _a) => {
+								return prev + (prev == '{ ' ? '' : ', ') + curr + ': ' + target + '.' + curr;
+						  }, '{ ') + ' }'
+						: target;
+					result += ` LET ${path}${target} = (FOR ${target} IN ${target} FILTER o.${path} == ${target}._id RETURN ${select}) `;
+					result += ` FOR ${target}Join IN (LENGTH(${path}${target}) > 0 ? ${path}${target} : [{}]) `;
+					ret += `, { ${path}: FIRST(${path}${target}) }`;
+				}
+			});
+			if (ret != qo.fields) {
+				ret += ')';
+			}
+		}
+		result += ' RETURN ' + ret;
 		return result;
 	}
 
@@ -229,23 +257,23 @@ export class ArangoDbQueryParser {
 	}
 
 	/**
-	 * cast select query to list of fields
-	 * select=email,phone
+	 * cast fields query to list of fields
+	 * fields=email,phone
 	 * =>
 	 * { email: o.email, phone: o.phone }
 	 * @param val
 	 */
-	castSelect(val): string {
+	castFields(val): string {
 		const result = val
 			.split(',')
 			.map(field => {
 				const [p, s] = field.split('.', 2);
-				return s ? { path: p, select: s } : { path: p };
+				return s ? { path: p, fields: s } : { path: p };
 			})
 			// TODO: whitelist / blacklist here too
 			.reduce((result, curr, _key) => {
 				const path = curr.path;
-				//const select = curr.select;
+				//const fields = curr.fields;
 				result += (result == '' ? '' : ', ') + path + ': o.' + path;
 				return result;
 			}, '');
@@ -254,9 +282,9 @@ export class ArangoDbQueryParser {
 
 	/**
 	 * cast populate query to object like:
-	 * populate=field1.p1,field1.p2,field2
+	 * populate=model1.p1,model1.p2,model2
 	 * =>
-	 * [{path: 'field1', select: 'p1 p2'}, {path: 'field2'}]
+	 * [{path: 'model1', fields: ['p1', 'p2']}, {path: 'model2'}]
 	 * @param val
 	 */
 	castPopulate(val: string) {
@@ -264,18 +292,22 @@ export class ArangoDbQueryParser {
 			.split(',')
 			.map(qry => {
 				const [p, s] = qry.split('.', 2);
-				return s ? { path: p, select: s } : { path: p };
+				return s ? { path: p, fields: [s] } : { path: p };
 			})
 			.reduce((prev, curr, key) => {
 				// consolidate population array
 				const path = curr.path;
-				const select = (curr as any).select;
+				const fields = curr.fields;
 				let found = false;
 				prev.forEach(e => {
 					if (e.path === path) {
 						found = true;
-						if (select) {
-							e.select = e.select ? e.select + ' ' + select : select;
+						if (fields) {
+							if (e.fields) {
+								e.fields.push(...fields);
+							} else {
+								e.fields = [fields];
+							}
 						}
 					}
 				});
