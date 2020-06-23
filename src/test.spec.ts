@@ -72,7 +72,7 @@ class Tester {
 
 	@test('should create populate')
 	parsePopulate1() {
-		const parser = new ArangoDbQueryParser({ collection: 'customers', populate: { owner: 'users', parent: 'customers' } });
+		const parser = new ArangoDbQueryParser({ collection: 'customers', populatelist: { owner: 'users', parent: 'customers' } });
 		const parsed = parser.parse('populate=owner,parent.name,parent.name2');
 		const query = parser.createQuery(parsed);
 		assert.isOk(parsed.populate.length == 2);

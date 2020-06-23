@@ -104,7 +104,6 @@ export class ArangoDbQueryParser {
 
 	/**
 	 * create AQL query from QueryOptions
-	 * 
 	 * @param qo QueryOptions
 	 * @return {string} AQL query
 	 */
