@@ -10,7 +10,7 @@ export interface ParserOptions {
 	casters?: { [key: string]: (val: string) => any };
 	castParams?: { [key: string]: string };
 	populateAlways?: string;
-	populateMapping?: { [key: string]: string };
+	populateMapping?: { [key: string]: string | { collection: string; field: string; as: string } };
 	collection?: string;
 	// rename the keys
 	fieldsKey?: string;
@@ -119,17 +119,20 @@ export class ArangoDbQueryParser {
 			qo.populate.forEach(({ path, fields }) => {
 				const target = options.populateMapping[path];
 				if (target) {
+					const collection = target instanceof Object ? target.collection || target : target;
+					const idField = target instanceof Object ? target.field || '_id' : '_id';
+					const as = target instanceof Object ? target.as || path : path;
 					if (ret == qo.fields) {
 						ret = 'MERGE(' + qo.fields;
 					}
 					const select = fields
 						? fields.reduce((prev, curr, _i, _a) => {
-								return prev + (prev == '{ ' ? '' : ', ') + curr + ': ' + target + '.' + curr;
+								return prev + (prev == '{ ' ? '' : ', ') + curr + ': ' + collection + '.' + curr;
 						  }, '{ ') + ' }'
-						: target;
-					result += ` LET ${path}${target} = (FOR ${target} IN ${target} FILTER o.${path} == ${target}._id RETURN ${select}) `;
-					result += ` FOR ${target}Join IN (LENGTH(${path}${target}) > 0 ? ${path}${target} : [{}]) `;
-					ret += `, { ${path}: FIRST(${path}${target}) }`;
+						: collection;
+					result += ` LET ${path}${collection} = (FOR ${collection} IN ${collection} FILTER o.${path} == ${collection}.${idField} RETURN ${select}) `;
+					result += ` FOR ${collection}Join IN (LENGTH(${path}${collection}) > 0 ? ${path}${collection} : [{}]) `;
+					ret += `, { ${as}: FIRST(${path}${collection}) }`;
 				}
 			});
 			if (ret != qo.fields) {
