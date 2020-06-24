@@ -72,7 +72,7 @@ class Tester {
 
 	@test('should create populate')
 	parsePopulate1() {
-		const parser = new ArangoDbQueryParser({ collection: 'customers', populatelist: { owner: 'users', parent: 'customers' } });
+		const parser = new ArangoDbQueryParser({ collection: 'customers', populateMapping: { owner: 'users', parent: 'customers' } });
 		const parsed = parser.parse('populate=owner,parent.name,parent.name2');
 		const query = parser.createQuery(parsed);
 		assert.isOk(parsed.populate.length == 2);
@@ -83,6 +83,22 @@ class Tester {
 		assert.equal(
 			query,
 			'FOR o IN customers LET ownerusers = (FOR users IN users FILTER o.owner == users._id RETURN users)  FOR usersJoin IN (LENGTH(ownerusers) > 0 ? ownerusers : [{}])  LET parentcustomers = (FOR customers IN customers FILTER o.parent == customers._id RETURN { name: customers.name, name2: customers.name2 })  FOR customersJoin IN (LENGTH(parentcustomers) > 0 ? parentcustomers : [{}])  RETURN MERGE(o, { owner: FIRST(ownerusers) }, { parent: FIRST(parentcustomers) })'
+		);
+	}
+
+	@test('should create default populate')
+	parsePopulate2() {
+		const parser = new ArangoDbQueryParser({ collection: 'customers', populateMapping: { owner: 'users', parent: 'customers' }, populateAlways: 'owner,parent.name' });
+		const parsed = parser.parse('');
+		const query = parser.createQuery(parsed);
+		assert.isOk(parsed.populate.length == 2);
+		assert.isOk(parsed.populate[0].path == 'owner');
+		assert.isOk(parsed.populate[1].path == 'parent');
+		assert.isUndefined(parsed.populate[0].fields);
+		assert.isDefined(parsed.populate[1].fields);
+		assert.equal(
+			query,
+			'FOR o IN customers LET ownerusers = (FOR users IN users FILTER o.owner == users._id RETURN users)  FOR usersJoin IN (LENGTH(ownerusers) > 0 ? ownerusers : [{}])  LET parentcustomers = (FOR customers IN customers FILTER o.parent == customers._id RETURN { name: customers.name })  FOR customersJoin IN (LENGTH(parentcustomers) > 0 ? parentcustomers : [{}])  RETURN MERGE(o, { owner: FIRST(ownerusers) }, { parent: FIRST(parentcustomers) })'
 		);
 	}
 }

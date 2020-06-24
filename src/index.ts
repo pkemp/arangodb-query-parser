@@ -9,7 +9,8 @@ export interface ParserOptions {
 	blacklist?: string[]; // list of fields disallowed to be in the filter
 	casters?: { [key: string]: (val: string) => any };
 	castParams?: { [key: string]: string };
-	populatelist?: { [key: string]: string };
+	populateAlways?: string;
+	populateMapping?: { [key: string]: string };
 	collection?: string;
 	// rename the keys
 	fieldsKey?: string;
@@ -21,9 +22,9 @@ export interface ParserOptions {
 
 export interface QueryOptions {
 	filter: any;
-	sort?: string | Record<string, any>; // ie.: { field: 1, field2: -1 }
+	sort?: string | Record<string, any>;
 	limit?: string;
-	fields?: string | Record<string, any>; // ie.: { field: 0, field2: 0 }
+	fields?: string | Record<string, any>;
 	populate?: { path: string; fields: string[] }[]; // path(s) to populate:  string array of path names or array like: [{path: 'model1', fields: ['p1', 'p2']}, ...]
 }
 
@@ -81,7 +82,7 @@ export class ArangoDbQueryParser {
 			const key = options[`${operator}Key`] || defaultKey;
 			const value = params[key];
 
-			if (value || operator === 'filter') {
+			if (value || operator === 'filter' || (operator === 'populate' && options.populateAlways)) {
 				result[operator] = method.call(this, value, params);
 			}
 		}, this);
@@ -114,9 +115,9 @@ export class ArangoDbQueryParser {
 		result += qo.sort ? ' ' + qo.sort : '';
 		result += qo.limit ? ' ' + qo.limit : '';
 		let ret = qo.fields;
-		if (qo.populate && options.populatelist) {
+		if (qo.populate && options.populateMapping) {
 			qo.populate.forEach(({ path, fields }) => {
-				const target = options.populatelist[path];
+				const target = options.populateMapping[path];
 				if (target) {
 					if (ret == qo.fields) {
 						ret = 'MERGE(' + qo.fields;
@@ -287,7 +288,9 @@ export class ArangoDbQueryParser {
 	 * @param val
 	 */
 	castPopulate(val: string) {
-		return val
+		const options = this._options;
+		const combined = options.populateAlways ? options.populateAlways + (val ? ',' + val : '') : val;
+		return combined
 			.split(',')
 			.map(qry => {
 				const [p, s] = qry.split('.', 2);
