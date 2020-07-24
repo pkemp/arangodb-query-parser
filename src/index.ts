@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as qs from 'querystring';
 import * as Moment from 'moment';
@@ -18,6 +19,7 @@ export interface ParserOptions {
 	sortKey?: string;
 	limitKey?: string;
 	filterKey?: string;
+	aggregateKey?: string;
 }
 
 export interface QueryOptions {
@@ -25,6 +27,7 @@ export interface QueryOptions {
 	sort?: string | Record<string, any>;
 	limit?: string;
 	fields?: string | Record<string, any>;
+	aggregate: { coll: string; agg: string; fields: string };
 	populate?: { path: string; fields: string[] }[]; // path(s) to populate:  string array of path names or array like: [{path: 'model1', fields: ['p1', 'p2']}, ...]
 }
 
@@ -49,6 +52,7 @@ export class ArangoDbQueryParser {
 		{ operator: 'sort', method: this.castSort, defaultKey: 'sort' },
 		{ operator: 'limit', method: this.castLimit, defaultKey: 'limit' },
 		{ operator: 'filter', method: this.castFilter, defaultKey: 'filter' },
+		{ operator: 'aggregate', method: this.castAggregate, defaultKey: 'aggregate' },
 	];
 
 	constructor(private _options: ParserOptions = {}) {
@@ -114,7 +118,8 @@ export class ArangoDbQueryParser {
 		result += qo.filter.filters ? ' ' + qo.filter.filters : '';
 		result += qo.sort ? ' ' + qo.sort : '';
 		result += qo.limit ? ' ' + qo.limit : '';
-		let ret = qo.fields;
+		let ret = qo.aggregate ? ' ' + qo.aggregate.fields : qo.fields;
+		const retOrig = ret;
 		if (qo.populate && options.populateMapping) {
 			qo.populate.forEach(({ path, fields }) => {
 				const target = options.populateMapping[path];
@@ -122,8 +127,8 @@ export class ArangoDbQueryParser {
 					const collection = target instanceof Object ? target.collection || target : target;
 					const idField = target instanceof Object ? target.field || '_id' : '_id';
 					const as = target instanceof Object ? target.as || path : path;
-					if (ret == qo.fields) {
-						ret = 'MERGE(' + qo.fields;
+					if (ret == retOrig) {
+						ret = 'MERGE(' + retOrig;
 					}
 					const select = fields
 						? fields.reduce((prev, curr, _i, _a) => {
@@ -132,13 +137,19 @@ export class ArangoDbQueryParser {
 						: collection;
 					result += ` LET ${path}${collection} = (FOR ${collection} IN ${collection} FILTER o.${path} == ${collection}.${idField} RETURN ${select}) `;
 					result += ` FOR ${collection}Join IN (LENGTH(${path}${collection}) > 0 ? ${path}${collection} : [{}]) `;
-					ret += `, { ${as}: FIRST(${path}${collection}) }`;
+					if (qo.aggregate) {
+						qo.aggregate.coll = (qo.aggregate.coll ? qo.aggregate.coll + ', ' : '') + `o_${path}${collection} = ${path}${collection} `;
+						ret += `, { ${as}: FIRST(o_${path}${collection}) }`;
+					} else {
+						ret += `, { ${as}: FIRST(${path}${collection}) }`;
+					}
 				}
 			});
-			if (ret != qo.fields) {
+			if (ret != retOrig) {
 				ret += ')';
 			}
 		}
+		result += qo.aggregate ? ' COLLECT ' + (qo.aggregate.coll || '') + ' ' + qo.aggregate.agg : '';
 		result += ' RETURN ' + ret;
 		return result;
 	}
@@ -267,13 +278,15 @@ export class ArangoDbQueryParser {
 	 * @param val
 	 */
 	castFields(val): string {
+		const options = this._options;
 		const result = val
 			.split(',')
 			.map(field => {
 				const [p, s] = field.split('.', 2);
 				return s ? { path: p, fields: s } : { path: p };
 			})
-			// TODO: whitelist / blacklist here too
+			.filter(({ path }) => !options.whitelist || options.whitelist.indexOf(path) > -1)
+			.filter(({ path }) => options.blacklist.indexOf(path) === -1)
 			.reduce((result, curr, _key) => {
 				const path = curr.path;
 				//const fields = curr.fields;
@@ -299,7 +312,7 @@ export class ArangoDbQueryParser {
 				const [p, s] = qry.split('.', 2);
 				return s ? { path: p, fields: [s] } : { path: p };
 			})
-			.reduce((prev, curr, key) => {
+			.reduce((prev, curr, _key) => {
 				// consolidate population array
 				const path = curr.path;
 				const fields = curr.fields;
@@ -333,16 +346,59 @@ export class ArangoDbQueryParser {
 		const r: Array<any> = arr.map(x => x.match(/^(\+|-)?(.*)/));
 
 		return r.reduce((result, [, dir, key]) => {
-			result = (_.isString(result) && result != '' ? result + ', o.' : 'SORT o.') + key.trim() + (dir === '-' ? ' DESC' : '');
+			if (key && /^[a-zA-Z0-9_]*$/.test(key)) {
+				result = (_.isString(result) && result != '' ? result + ', o.' : 'SORT o.') + key.trim() + (dir === '-' ? ' DESC' : '');
+			}
 			return result;
 		}, '');
+	}
+
+	/**
+	 * cast aggregate query to string
+	 * aggregate=country,city:totalPrice sum price,averagePrice avg price,priceCount count price
+	 * =>
+	 * COLLECT country=o.country, city = o.city
+	 * AGGREGATE totalPrice = SUM(o.price), averagePrice = AVG(o.price), priceCount = COUNT(o.price)
+	 * @param aggregate
+	 */
+	castAggregate(aggregate: string) {
+		let [collFields, aggregations] = aggregate.split(':', 2);
+		let coll;
+		let agg;
+		let fields;
+		const types = ['avg', 'sum', 'min', 'max', 'length', 'stddev', 'variance', 'count', 'count_distinct', 'unique', 'sorted_unique'];
+
+		if (!collFields && !aggregations) {
+			return '';
+		}
+
+		if (!aggregations) {
+			aggregations = collFields;
+			collFields = '';
+		}
+
+		for (const field of collFields.split(',')) {
+			if (field && /^[a-zA-Z0-9_]*$/.test(field)) {
+				coll = (coll ? coll + ', ' : '') + field + ' = o.' + field;
+				fields = (fields ? fields + ', ' : '') + field;
+			}
+		}
+		for (const a of aggregations.split(',')) {
+			const [as, type, field] = a.split(' ');
+			if (as && type && field && /^[a-zA-Z0-9_]*$/.test(as) && /^[a-zA-Z0-9_]*$/.test(field) && types.includes(type)) {
+				agg = (agg ? agg + ', ' : 'AGGREGATE ') + as + ' = ' + type.toUpperCase() + '(o.' + field + ')';
+				fields = (fields ? fields + ', ' : '') + as;
+			}
+		}
+
+		return { coll, agg, fields: '{ ' + fields + ' }' };
 	}
 
 	/**
 	 * cast limit query to object like
 	 * limit=10
 	 * =>
-	 * {limit: 10}
+	 * LIMIT 10
 	 * @param limit
 	 */
 	castLimit(limit: string) {

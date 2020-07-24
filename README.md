@@ -4,7 +4,9 @@ Convert url query string to ArangoDB database AQL query.
 
 ## Features
 
-Supports most of the ArangoDB operators and features including filters, sorting, limit, skip.
+Supports most of the ArangoDB operators and features including filters, sorting, limit, skip, populating and aggregations.
+
+Note: as this library allows to create heavy and/or unintentional database queries use it with caution in public environments!
 
 ## Installation
 ```
@@ -41,6 +43,7 @@ Initialize parser with given options.
 	- `sortKey`: Name of the query parameter used for sorting
 	- `limitKey`: Name of the query parameter for result count limit and skip
 	- `filterKey`: Name of the query parameter for filters
+	- `aggregateKey`: Name of the query parameter for aggregations
 
 ### parser.parse(query, predefined)
 
@@ -57,7 +60,36 @@ Parses the query parameters into a QueryOptions object.
     - `fields` contains the query projection
     - `populate` paths to populate
     - `sort`, 
-	- `limit`  contains the cursor modifiers for paging purposes.
+	- `limit` contains the cursor modifiers for paging purposes.
+	- `aggregate` contains the parsed aggregations
+
+#### Fields
+Result fields can be specified in the format:
+```
+?fields=firstName,lastName
+```
+
+#### Limit
+Result limits can be specified in the format:
+```
+?limit=10
+```
+
+will return 10 items. Optionally you can add starting offset:
+
+```
+?limit=10,30
+```
+
+will return 10 items starting from 30.
+
+#### Sorting
+Sorting can be specified in the format:
+```
+?sort=creationDate,-price
+```
+will sort first by creationDate ascending and then by price descending.
+
 
 #### Populating
 Two choices for relationship population exists:
@@ -94,7 +126,29 @@ const parser = new ArangoDbQueryParser({
 });
 ```
 
+#### Aggregations
+Aggregations can be specified in the format:
+```
+field,field2:as func field3
+```
 
+Where 
+- `field` and `field2` are the grouping fields
+- `as` is the name of the aggregation
+- `func` is the aggregation function (avg, sum, min, max, length, stddev, variance, count, count_distinct, unique, sorted_unique)
+- `field3` is the name of the aggregated field
+
+Example:
+```
+?aggregate=owner,status:totalPrice sum sum,averagePrice avg sum,priceCount count sum
+```
+
+You can leave out the grouping fields:
+```
+?aggregate=totalCount count owner
+```
+
+will create query for aggregation without grouping.
 
 ### parser.createQuery(queryOptions)
 
@@ -104,10 +158,8 @@ const parser = new ArangoDbQueryParser({
 #### Returns
 - `query`: AQL query (as string) created from the query options. This can be used together with queryoptions filter.bindVars to run the query in ArangoDB.
 
-
 ## License
 [MIT](LICENSE)
 
 ## Thanks
-
 This library is heavily based on [mongoose-query-parser](https://github.com/leodinas-hao/mongoose-query-parser) by Leodinas Hao

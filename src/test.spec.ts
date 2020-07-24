@@ -19,14 +19,10 @@ class Tester {
 		assert.isOk(parsed.filter.bindVars['null'] === null);
 	}
 
-	@test('should parse query with string templates')
+	@test('should parse more complex query')
 	generalParse2() {
 		const parser = new ArangoDbQueryParser();
-		const predefined = {
-			vip: { name: { $in: ['Google', 'Microsoft', 'NodeJs'] } },
-			sentStatus: 'sent',
-		};
-		const parsed = parser.parse('timestamp>2017-10-01&timestamp<2020-01-01&author.firstName=/frederick/i&limit=100,50&sort=-timestamp&fields=name', predefined);
+		const parsed = parser.parse('timestamp>2017-10-01&timestamp<2020-01-01&author.firstName=/frederick/i&limit=100,50&sort=-timestamp&fields=name');
 		assert.strictEqual(parsed.filter.filters, 'FILTER o.timestamp > @timestamp AND o.timestamp < @timestamp AND o.author.firstName =~ @author.firstName');
 		assert.isOk(parsed.filter.bindVars['author.firstName'] instanceof RegExp);
 		assert.isOk(parsed.limit == 'LIMIT 50, 100');
@@ -54,6 +50,16 @@ class Tester {
 		assert.isUndefined(parsed.filter.bindVars['password']);
 	}
 
+	@test('should not parse blacklisted fields')
+	parseBlacklist() {
+		const parser = new ArangoDbQueryParser({ blacklist: ['middleName', 'password'] });
+		const parsed = parser.parse('firstName=William&middleName=Frederick&lastName=Durst&password=secret');
+		assert.isOk(parsed.filter.bindVars['firstName'] == 'William');
+		assert.isUndefined(parsed.filter.bindVars['middleName']);
+		assert.isOk(parsed.filter.bindVars['lastName'] == 'Durst');
+		assert.isUndefined(parsed.filter.bindVars['password']);
+	}
+
 	@test('should create equal query for filters')
 	parseQuery1() {
 		const parser = new ArangoDbQueryParser({ collection: 'events' });
@@ -68,6 +74,22 @@ class Tester {
 		const parsed = parser.parse('startTime>2020-06-16&private=false&limit=10&sort=startTime');
 		const query = parser.createQuery(parsed);
 		assert.equal(query, 'FOR o IN events FILTER o.startTime > @startTime AND o.private == @private SORT o.startTime LIMIT 10 RETURN o');
+	}
+
+	@test('should create query only for whitelisted fields')
+	parseQueryWhiteList() {
+		const parser = new ArangoDbQueryParser({ collection: 'users', whitelist: ['firstName', 'lastName'] });
+		const parsed = parser.parse('fields=firstName,middleName,lastName,password');
+		const query = parser.createQuery(parsed);
+		assert.equal(query, 'FOR o IN users RETURN { firstName: o.firstName, lastName: o.lastName }');
+	}
+
+	@test('should not create query for blacklisted fields')
+	parseQueryBlacklist() {
+		const parser = new ArangoDbQueryParser({ collection: 'users', blacklist: ['middleName', 'password'] });
+		const parsed = parser.parse('fields=firstName,middleName,lastName,password');
+		const query = parser.createQuery(parsed);
+		assert.equal(query, 'FOR o IN users RETURN { firstName: o.firstName, lastName: o.lastName }');
 	}
 
 	@test('should create populate')
@@ -115,6 +137,44 @@ class Tester {
 		assert.equal(
 			query,
 			'FOR o IN customers LET ownerusers = (FOR users IN users FILTER o.owner == users._key RETURN users)  FOR usersJoin IN (LENGTH(ownerusers) > 0 ? ownerusers : [{}])  LET parentcustomers = (FOR customers IN customers FILTER o.parent == customers._id RETURN { name: customers.name })  FOR customersJoin IN (LENGTH(parentcustomers) > 0 ? parentcustomers : [{}])  RETURN MERGE(o, { ownerData: FIRST(ownerusers) }, { parent: FIRST(parentcustomers) })'
+		);
+	}
+
+	@test('should create grouped aggregates')
+	parseAggregate1() {
+		const parser = new ArangoDbQueryParser({ collection: 'deals' });
+		const parsed = parser.parse('aggregate=owner,status:totalPrice sum sum,averagePrice avg sum,priceCount count sum');
+		const query = parser.createQuery(parsed);
+		assert.equal(query, 'FOR o IN deals COLLECT owner = o.owner, status = o.status AGGREGATE totalPrice = SUM(o.sum), averagePrice = AVG(o.sum), priceCount = COUNT(o.sum) RETURN  { owner, status, totalPrice, averagePrice, priceCount }');
+	}
+
+	@test('should create total aggregates')
+	parseAggregate2() {
+		const parser = new ArangoDbQueryParser({ collection: 'deals' });
+		const parsed = parser.parse('aggregate=totalPrice sum sum,averagePrice avg sum,priceCount count sum');
+		const query = parser.createQuery(parsed);
+		assert.equal(query, 'FOR o IN deals COLLECT  AGGREGATE totalPrice = SUM(o.sum), averagePrice = AVG(o.sum), priceCount = COUNT(o.sum) RETURN  { totalPrice, averagePrice, priceCount }');
+	}
+
+	@test('should create aggregates with populate')
+	parseAggregate3() {
+		const parser = new ArangoDbQueryParser({ collection: 'deals', populateMapping: { owner: 'users', customer: 'customers' }, populateAlways: 'customer.name' });
+		const parsed = parser.parse('aggregate=owner,status:totalPrice sum sum,averagePrice avg sum,priceCount count sum');
+		const query = parser.createQuery(parsed);
+		assert.equal(
+			query,
+			'FOR o IN deals LET customercustomers = (FOR customers IN customers FILTER o.customer == customers._id RETURN { name: customers.name })  FOR customersJoin IN (LENGTH(customercustomers) > 0 ? customercustomers : [{}])  COLLECT owner = o.owner, status = o.status, o_customercustomers = customercustomers  AGGREGATE totalPrice = SUM(o.sum), averagePrice = AVG(o.sum), priceCount = COUNT(o.sum) RETURN MERGE( { owner, status, totalPrice, averagePrice, priceCount }, { customer: FIRST(o_customercustomers) })'
+		);
+	}
+
+	@test('should create aggregates grouped only by populates')
+	parseAggregate4() {
+		const parser = new ArangoDbQueryParser({ collection: 'deals', populateMapping: { owner: 'users', customer: 'customers' }, populateAlways: 'customer.name' });
+		const parsed = parser.parse('aggregate=totalPrice sum sum,averagePrice avg sum,priceCount count sum');
+		const query = parser.createQuery(parsed);
+		assert.equal(
+			query,
+			'FOR o IN deals LET customercustomers = (FOR customers IN customers FILTER o.customer == customers._id RETURN { name: customers.name })  FOR customersJoin IN (LENGTH(customercustomers) > 0 ? customercustomers : [{}])  COLLECT o_customercustomers = customercustomers  AGGREGATE totalPrice = SUM(o.sum), averagePrice = AVG(o.sum), priceCount = COUNT(o.sum) RETURN MERGE( { totalPrice, averagePrice, priceCount }, { customer: FIRST(o_customercustomers) })'
 		);
 	}
 }
