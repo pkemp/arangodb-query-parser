@@ -247,4 +247,26 @@ class Tester {
 			'FOR o IN deals COLLECT  AGGREGATE totalPrice = SUM(o.sum), averagePrice = AVG(o.sum), priceCount = COUNT(o.sum) RETURN  { totalPrice, averagePrice, priceCount }'
 		);
 	}
+
+	@test('should parse date shortcuts')
+	parseDateShortcuts1() {
+		const parser = new ArangoDbQueryParser({ collection: 'deals' });
+		const parsed = parser.parse('thisYearStarts=date(startOfYear)&thisYearEnds=date(endOfYear)&thisMonthStarts=date(startOfMonth)&thisMonthEnds=date(endOfMonth)&thisQuarterStarts=date(startOfQuarter)&thisQuarterEnds=date(endOfQuarter)');
+		const query = parser.createQuery(parsed);
+		assert.equal(
+			query,
+			'FOR o IN deals FILTER o.thisYearStarts == @thisYearStarts AND o.thisYearEnds == @thisYearEnds AND o.thisMonthStarts == @thisMonthStarts AND o.thisMonthEnds == @thisMonthEnds AND o.thisQuarterStarts == @thisQuarterStarts AND o.thisQuarterEnds == @thisQuarterEnds RETURN o'
+		);
+	}
+
+	@test('should parse date shortcuts with modifiers')
+	parseDateShortcuts2() {
+		const parser = new ArangoDbQueryParser({ collection: 'deals' });
+		const parsed = parser.parse('previousYearStarts=date(startOfYear:-1)&previousYearEnds=date(endOfYear:-1)&nextMonthStarts=date(startOfMonth:1)&nextMonthEnds=date(endOfMonth:1)');
+		const query = parser.createQuery(parsed);
+		assert.equal(
+			query,
+			'FOR o IN deals FILTER o.previousYearStarts == @previousYearStarts AND o.previousYearEnds == @previousYearEnds AND o.nextMonthStarts == @nextMonthStarts AND o.nextMonthEnds == @nextMonthEnds RETURN o'
+		);
+	}
 }

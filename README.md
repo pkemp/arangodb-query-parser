@@ -63,6 +63,33 @@ Parses the query parameters into a QueryOptions object.
 	- `limit` contains the cursor modifiers for paging purposes.
 	- `aggregate` contains the parsed aggregations
 
+#### Filters
+All other query parameters are considered to be filters. Example:
+```
+?firstName=Frederick&lastName=Durst
+```
+
+Specifies filters for firstName and lastName fields. Several values can be separated with comma for alternatives (OR):
+
+```
+?firstName=Frederick,Bernie,Jack
+```
+
+Value can be a regular expression:
+
+```
+?firstName=/frederick/i
+```
+
+Other signs for number and date fields:
+
+```
+?price<1000      // price is larger than 1000
+?price!=1000     // price is not 1000
+?price>=1000     // price is larger or equal to 1000
+```
+
+
 #### Fields
 Result fields can be specified in the format:
 ```

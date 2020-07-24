@@ -37,11 +37,30 @@ export class ArangoDbQueryParser {
 	private readonly _builtInCaster = {
 		string: val => String(val),
 		date: val => {
+			const shortcuts = {
+				startOfYear: (key, mod) => Moment.utc().startOf('year').add(Number(mod || '0'), 'years'),
+				endOfYear: (key, mod) => Moment.utc().endOf('year').add(Number(mod || '0'), 'years'),
+				startOfQuarter: (key, mod) => Moment.utc().startOf('quarter').add(Number(mod || '0'), 'quarters'),
+				endOfQuarter: (key, mod) => Moment.utc().endOf('quarter').add(Number(mod || '0'), 'quarters'),
+				startOfMonth: (key, mod) => Moment.utc().startOf('month').add(Number(mod || '0'), 'months'),
+				endOfMonth: (key, mod) => Moment.utc().endOf('month').add(Number(mod || '0'), 'months'),
+				startOfWeek: (key, mod) => Moment.utc().startOf('isoWeek').add(Number(mod || '0'), 'weeks'),
+				endOfWeek: (key, mod) => Moment.utc().endOf('isoWeek').add(Number(mod || '0'), 'weeks'),
+			};
+			//const [, key, mod] = /(^[a-zA-Z]+$)|^([a-zA-Z]+):(.+)$/.exec(val);
+			const matches = val.match(/^([a-zA-Z]+):?([0-9-.]*)$/);
+			if (matches) {
+				if (shortcuts[matches[1]]) {
+					return shortcuts[matches[1]](matches[1], matches[2]).toDate();
+				} else {
+					throw new Error(`Unknown date shortcut: ${matches[1]}`);
+				}
+			} else {}
 			const m = Moment.utc(val, this._options.dateFormat);
 			if (m.isValid()) {
 				return m.toDate();
 			} else {
-				throw new Error(`Invalid date string: [${val}]`);
+				throw new Error(`Invalid date string: ${val}`);
 			}
 		},
 	};
