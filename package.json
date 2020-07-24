@@ -1,6 +1,6 @@
 {
 	"name": "arangodb-query-parser",
-	"version": "0.1.5",
+	"version": "0.1.6",
 	"description": "Convert url query string to ArangoDB friendly query object.",
 	"main": "./lib/index.js",
 	"types": "./lib/index.d.ts",
@@ -9,6 +9,7 @@
 		"compile": "npm run clean && tsc",
 		"prepublishOnly": "npm run compile",
 		"pretest": "npm run compile",
+		"debug": "mocha --inspect-brk ./lib/**/*.spec.js",
 		"test": "mocha ./lib/**/*.spec.js",
 		"lint": "eslint src/**/*.ts",
 		"fix": "eslint src/**/*.ts --fix"

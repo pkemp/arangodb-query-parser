@@ -306,7 +306,11 @@ export class ArangoDbQueryParser {
 	castPopulate(val: string) {
 		const options = this._options;
 		const combined = options.populateAlways ? options.populateAlways + (val ? ',' + val : '') : val;
-		return combined
+		if (val == '-') {
+			return null;
+		}
+
+		const result = combined
 			.split(',')
 			.map(qry => {
 				const [p, s] = qry.split('.', 2);
@@ -314,26 +318,38 @@ export class ArangoDbQueryParser {
 			})
 			.reduce((prev, curr, _key) => {
 				// consolidate population array
-				const path = curr.path;
+				let path = curr.path;
 				const fields = curr.fields;
+				const removing = path.startsWith('-');
+				if (removing) {
+					path = path.substring(1);
+				}
 				let found = false;
-				prev.forEach(e => {
+				prev.forEach((e, i) => {
 					if (e.path === path) {
 						found = true;
 						if (fields) {
-							if (e.fields) {
+							if (removing) {
+								if (e.fields && e.fields.includes(fields[0])) {
+									e.fields.splice(e.fields.indexOf(fields[0]), 1);
+								}
+							} else if (e.fields) {
 								e.fields.push(...fields);
 							} else {
 								e.fields = [fields];
 							}
+						} else if (removing) {
+							prev.splice(i, 1);
 						}
 					}
 				});
-				if (!found) {
+				if (!found && !removing) {
 					prev.push(curr);
 				}
 				return prev;
 			}, []);
+
+		return result;
 	}
 
 	/**

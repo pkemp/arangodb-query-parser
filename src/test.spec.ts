@@ -10,7 +10,8 @@ class Tester {
 	@test('should parse general query')
 	generalParse() {
 		const parser = new ArangoDbQueryParser();
-		const qry = 'date=2016-01-01&boolean=true&integer=10&regexp=/foobar/i&null=null&startTime>2020-06-16&type=note,task&limit=,10&sort=type,-startTime&fields=startTime,endTime';
+		const qry =
+			'date=2016-01-01&boolean=true&integer=10&regexp=/foobar/i&null=null&startTime>2020-06-16&type=note,task&limit=,10&sort=type,-startTime&fields=startTime,endTime';
 		const parsed = parser.parse(qry);
 		assert.isNotNull(parsed.filter);
 		assert.isOk(parsed.filter.bindVars['boolean'] === true);
@@ -110,7 +111,11 @@ class Tester {
 
 	@test('should create default populate')
 	parsePopulate2() {
-		const parser = new ArangoDbQueryParser({ collection: 'customers', populateMapping: { owner: 'users', parent: 'customers' }, populateAlways: 'owner,parent.name' });
+		const parser = new ArangoDbQueryParser({
+			collection: 'customers',
+			populateMapping: { owner: 'users', parent: 'customers' },
+			populateAlways: 'owner,parent.name',
+		});
 		const parsed = parser.parse('');
 		const query = parser.createQuery(parsed);
 		assert.isOk(parsed.populate.length == 2);
@@ -126,7 +131,11 @@ class Tester {
 
 	@test('should create default populate with another name')
 	parsePopulate3() {
-		const parser = new ArangoDbQueryParser({ collection: 'customers', populateMapping: { owner: { collection: 'users', field: '_key', as: 'ownerData' }, parent: 'customers' }, populateAlways: 'owner,parent.name' });
+		const parser = new ArangoDbQueryParser({
+			collection: 'customers',
+			populateMapping: { owner: { collection: 'users', field: '_key', as: 'ownerData' }, parent: 'customers' },
+			populateAlways: 'owner,parent.name',
+		});
 		const parsed = parser.parse('');
 		const query = parser.createQuery(parsed);
 		assert.isOk(parsed.populate.length == 2);
@@ -140,12 +149,47 @@ class Tester {
 		);
 	}
 
+	@test('should remove all default populates')
+	parsePopulate4() {
+		const parser = new ArangoDbQueryParser({
+			collection: 'customers',
+			populateMapping: { owner: 'users', parent: 'customers' },
+			populateAlways: 'owner,parent.name,parent.name2',
+		});
+		const parsed = parser.parse('populate=-');
+		const query = parser.createQuery(parsed);
+		assert.isNull(parsed.populate);
+		assert.equal(query, 'FOR o IN customers RETURN o');
+	}
+
+	@test('should remove specified default populates')
+	parsePopulate5() {
+		const parser = new ArangoDbQueryParser({
+			collection: 'customers',
+			populateMapping: { owner: 'users', parent: 'customers' },
+			populateAlways: 'owner,parent.name,parent.name2',
+		});
+		const parsed = parser.parse('populate=-owner,-parent.name2');
+		const query = parser.createQuery(parsed);
+		assert.isOk(parsed.populate.length == 1);
+		assert.isOk(parsed.populate[0].path == 'parent');
+		assert.isDefined(parsed.populate[0].fields);
+		assert.isOk(parsed.populate[0].fields.length == 1);
+		assert.equal(
+			query,
+			'FOR o IN customers LET parentcustomers = (FOR customers IN customers FILTER o.parent == customers._id RETURN { name: customers.name })  FOR customersJoin IN (LENGTH(parentcustomers) > 0 ? parentcustomers : [{}])  RETURN MERGE(o, { parent: FIRST(parentcustomers) })'
+		);
+	}
+
 	@test('should create grouped aggregates')
 	parseAggregate1() {
 		const parser = new ArangoDbQueryParser({ collection: 'deals' });
 		const parsed = parser.parse('aggregate=owner,status:totalPrice sum sum,averagePrice avg sum,priceCount count sum');
 		const query = parser.createQuery(parsed);
-		assert.equal(query, 'FOR o IN deals COLLECT owner = o.owner, status = o.status AGGREGATE totalPrice = SUM(o.sum), averagePrice = AVG(o.sum), priceCount = COUNT(o.sum) RETURN  { owner, status, totalPrice, averagePrice, priceCount }');
+		assert.equal(
+			query,
+			'FOR o IN deals COLLECT owner = o.owner, status = o.status AGGREGATE totalPrice = SUM(o.sum), averagePrice = AVG(o.sum), priceCount = COUNT(o.sum) RETURN  { owner, status, totalPrice, averagePrice, priceCount }'
+		);
 	}
 
 	@test('should create total aggregates')
@@ -153,12 +197,19 @@ class Tester {
 		const parser = new ArangoDbQueryParser({ collection: 'deals' });
 		const parsed = parser.parse('aggregate=totalPrice sum sum,averagePrice avg sum,priceCount count sum');
 		const query = parser.createQuery(parsed);
-		assert.equal(query, 'FOR o IN deals COLLECT  AGGREGATE totalPrice = SUM(o.sum), averagePrice = AVG(o.sum), priceCount = COUNT(o.sum) RETURN  { totalPrice, averagePrice, priceCount }');
+		assert.equal(
+			query,
+			'FOR o IN deals COLLECT  AGGREGATE totalPrice = SUM(o.sum), averagePrice = AVG(o.sum), priceCount = COUNT(o.sum) RETURN  { totalPrice, averagePrice, priceCount }'
+		);
 	}
 
 	@test('should create aggregates with populate')
 	parseAggregate3() {
-		const parser = new ArangoDbQueryParser({ collection: 'deals', populateMapping: { owner: 'users', customer: 'customers' }, populateAlways: 'customer.name' });
+		const parser = new ArangoDbQueryParser({
+			collection: 'deals',
+			populateMapping: { owner: 'users', customer: 'customers' },
+			populateAlways: 'customer.name',
+		});
 		const parsed = parser.parse('aggregate=owner,status:totalPrice sum sum,averagePrice avg sum,priceCount count sum');
 		const query = parser.createQuery(parsed);
 		assert.equal(
@@ -169,12 +220,31 @@ class Tester {
 
 	@test('should create aggregates grouped only by populates')
 	parseAggregate4() {
-		const parser = new ArangoDbQueryParser({ collection: 'deals', populateMapping: { owner: 'users', customer: 'customers' }, populateAlways: 'customer.name' });
+		const parser = new ArangoDbQueryParser({
+			collection: 'deals',
+			populateMapping: { owner: 'users', customer: 'customers' },
+			populateAlways: 'customer.name',
+		});
 		const parsed = parser.parse('aggregate=totalPrice sum sum,averagePrice avg sum,priceCount count sum');
 		const query = parser.createQuery(parsed);
 		assert.equal(
 			query,
 			'FOR o IN deals LET customercustomers = (FOR customers IN customers FILTER o.customer == customers._id RETURN { name: customers.name })  FOR customersJoin IN (LENGTH(customercustomers) > 0 ? customercustomers : [{}])  COLLECT o_customercustomers = customercustomers  AGGREGATE totalPrice = SUM(o.sum), averagePrice = AVG(o.sum), priceCount = COUNT(o.sum) RETURN MERGE( { totalPrice, averagePrice, priceCount }, { customer: FIRST(o_customercustomers) })'
+		);
+	}
+
+	@test('should create aggregates without default populates')
+	parseAggregate5() {
+		const parser = new ArangoDbQueryParser({
+			collection: 'deals',
+			populateMapping: { owner: 'users', customer: 'customers' },
+			populateAlways: 'customer.name',
+		});
+		const parsed = parser.parse('populate=-&aggregate=totalPrice sum sum,averagePrice avg sum,priceCount count sum');
+		const query = parser.createQuery(parsed);
+		assert.equal(
+			query,
+			'FOR o IN deals COLLECT  AGGREGATE totalPrice = SUM(o.sum), averagePrice = AVG(o.sum), priceCount = COUNT(o.sum) RETURN  { totalPrice, averagePrice, priceCount }'
 		);
 	}
 }

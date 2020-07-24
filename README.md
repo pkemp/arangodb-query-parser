@@ -126,6 +126,18 @@ const parser = new ArangoDbQueryParser({
 });
 ```
 
+You can disable default populates with dash:
+
+```
+?populate=-owner,-parent.name
+```
+
+To disable all populates use a dash only:
+```
+?populate=-
+```
+
+
 #### Aggregations
 Aggregations can be specified in the format:
 ```
