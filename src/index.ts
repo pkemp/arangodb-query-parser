@@ -238,7 +238,7 @@ export class ArangoDbQueryParser {
 				.map(val => {
 					const join = params[val] ? `${val}=${params[val]}` : val;
 					// Separate key, operators and value
-					const [, prefix, key, op, value] = join.match(/(!?)([^><!=]+)([><]=?|!?=|)(.*)/);
+					const [, prefix, key, op, value] = join.match(/(!?)([^><!=]+)([><=]=?|!?=|)(.*)/);
 					return { prefix, key, op: this.parseOperator(op), value: this.parseValue(value, key) };
 				})
 				.filter(({ key }) => !options.whitelist || options.whitelist.indexOf(key) > -1)
@@ -251,7 +251,11 @@ export class ArangoDbQueryParser {
 						op = op == '!=' ? '!~' : '=~';
 					}
 					result.filters = typeof result.filters == 'string' ? result.filters + ' AND ' : 'FILTER ';
-					result.filters += 'o.' + key + ' ' + op + ' @' + key;
+					if (op == '===') {
+						result.filters += 'o.' + key + ' == TO_STRING(@' + key + ')';
+					} else {
+						result.filters += 'o.' + key + ' ' + op + ' @' + key;
+					}
 					result.bindVars = !result.bindVars ? {} : result.bindVars;
 					result.bindVars[key] = value;
 
@@ -274,6 +278,8 @@ export class ArangoDbQueryParser {
 	parseOperator(operator) {
 		if (operator === '=') {
 			return '==';
+		} else if (operator === '==') {
+			return '===';
 		} else if (operator === '!=') {
 			return '!=';
 		} else if (operator === '>') {
