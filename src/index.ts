@@ -245,6 +245,7 @@ export class ArangoDbQueryParser {
 				.filter(({ key }) => options.blacklist.indexOf(key) === -1)
 				// eslint-disable-next-line @typescript-eslint/no-unused-vars
 				.reduce((result, { prefix, key, op, value }) => {
+					const bindVar = key.replace('.', '_');
 					if (Array.isArray(value)) {
 						op = op == '!=' ? 'NOT IN' : 'IN';
 					} else if (value instanceof RegExp) {
@@ -252,12 +253,12 @@ export class ArangoDbQueryParser {
 					}
 					result.filters = typeof result.filters == 'string' ? result.filters + ' AND ' : 'FILTER ';
 					if (op == '===') {
-						result.filters += 'o.' + key + ' == TO_STRING(@' + key + ')';
+						result.filters += 'o.' + key + ' == TO_STRING(@' + bindVar + ')';
 					} else {
-						result.filters += 'o.' + key + ' ' + op + ' @' + key;
+						result.filters += 'o.' + key + ' ' + op + ' @' + bindVar;
 					}
 					result.bindVars = !result.bindVars ? {} : result.bindVars;
-					result.bindVars[key] = value;
+					result.bindVars[bindVar] = value;
 
 					return result;
 				}, parsedFilter)

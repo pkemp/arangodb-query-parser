@@ -24,8 +24,8 @@ class Tester {
 	generalParse2() {
 		const parser = new ArangoDbQueryParser();
 		const parsed = parser.parse('timestamp>2017-10-01&timestamp<2020-01-01&author.firstName=/frederick/i&limit=100,50&sort=-timestamp&fields=name');
-		assert.strictEqual(parsed.filter.filters, 'FILTER o.timestamp > @timestamp AND o.timestamp < @timestamp AND o.author.firstName =~ @author.firstName');
-		assert.isOk(parsed.filter.bindVars['author.firstName'] instanceof RegExp);
+		assert.strictEqual(parsed.filter.filters, 'FILTER o.timestamp > @timestamp AND o.timestamp < @timestamp AND o.author.firstName =~ @author_firstName');
+		assert.isOk(parsed.filter.bindVars['author_firstName'] instanceof RegExp);
 		assert.isOk(parsed.limit == 'LIMIT 50, 100');
 		assert.isNotNull(parsed.sort);
 		assert.isNotNull(parsed.fields);
@@ -75,6 +75,14 @@ class Tester {
 		const parsed = parser.parse('startTime>2020-06-16&private=false&limit=10&sort=startTime');
 		const query = parser.createQuery(parsed);
 		assert.equal(query, 'FOR o IN events FILTER o.startTime > @startTime AND o.private == @private SORT o.startTime LIMIT 10 RETURN o');
+	}
+
+	@test('should create equal query for dot notation filters')
+	parseQuery3() {
+		const parser = new ArangoDbQueryParser({ collection: 'documents' });
+		const parsed = parser.parse('topLevel.secondLevel=foo');
+		const query = parser.createQuery(parsed);
+		assert.equal(query, 'FOR o IN documents FILTER o.topLevel.secondLevel == @topLevel_secondLevel RETURN o');
 	}
 
 	@test('should create query only for whitelisted fields')
