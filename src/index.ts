@@ -55,7 +55,7 @@ export class ArangoDbQueryParser {
 				} else {
 					throw new Error(`Unknown date shortcut: ${matches[1]}`);
 				}
-			} else {}
+			}
 			const m = Moment.utc(val, this._options.dateFormat);
 			if (m.isValid()) {
 				return m.toDate();
@@ -245,7 +245,7 @@ export class ArangoDbQueryParser {
 				.filter(({ key }) => options.blacklist.indexOf(key) === -1)
 				// eslint-disable-next-line @typescript-eslint/no-unused-vars
 				.reduce((result, { prefix, key, op, value }) => {
-					const bindVar = key.replace('.', '_');
+					const bindVar = key.replace(/\./g, '_');
 					if (Array.isArray(value)) {
 						op = op == '!=' ? 'NOT IN' : 'IN';
 					} else if (value instanceof RegExp) {
@@ -315,7 +315,6 @@ export class ArangoDbQueryParser {
 			.filter(({ path }) => options.blacklist.indexOf(path) === -1)
 			.reduce((result, curr, _key) => {
 				const path = curr.path;
-				//const fields = curr.fields;
 				result += (result == '' ? '' : ', ') + path + ': o.' + path;
 				return result;
 			}, '');

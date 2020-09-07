@@ -80,9 +80,9 @@ class Tester {
 	@test('should create equal query for dot notation filters')
 	parseQuery3() {
 		const parser = new ArangoDbQueryParser({ collection: 'documents' });
-		const parsed = parser.parse('topLevel.secondLevel=foo');
+		const parsed = parser.parse('topLevel.secondLevel.thirdLevel=foo');
 		const query = parser.createQuery(parsed);
-		assert.equal(query, 'FOR o IN documents FILTER o.topLevel.secondLevel == @topLevel_secondLevel RETURN o');
+		assert.equal(query, 'FOR o IN documents FILTER o.topLevel.secondLevel.thirdLevel == @topLevel_secondLevel_thirdLevel RETURN o');
 	}
 
 	@test('should create query only for whitelisted fields')
