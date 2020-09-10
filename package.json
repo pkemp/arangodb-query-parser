@@ -1,6 +1,6 @@
 {
 	"name": "arangodb-query-parser",
-	"version": "0.1.11",
+	"version": "0.1.12",
 	"description": "Convert url query string to ArangoDB friendly query object.",
 	"main": "./lib/index.js",
 	"types": "./lib/index.d.ts",
@@ -31,6 +31,7 @@
 	},
 	"homepage": "https://github.com/pkemp/arangodb-query-parser#readme",
 	"devDependencies": {
+		"@testdeck/mocha": "^0.1.0",
 		"@types/chai": "^4.2.12",
 		"@types/lodash": "^4.14.159",
 		"@types/mocha": "^5.2.7",
@@ -46,7 +47,6 @@
 		"eslint-plugin-prefer-arrow": "^1.2.2",
 		"eslint-plugin-prettier": "^3.1.4",
 		"mocha": "^8.1.1",
-		"mocha-typescript": "^1.1.17",
 		"prettier": "^1.19.1",
 		"rimraf": "^2.7.1",
 		"ts-node": "^7.0.1",

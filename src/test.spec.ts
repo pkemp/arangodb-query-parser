@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { suite, test } from 'mocha-typescript';
+import { suite, test } from '@testdeck/mocha';
 import { assert } from 'chai';
 
 import { ArangoDbQueryParser } from './';
