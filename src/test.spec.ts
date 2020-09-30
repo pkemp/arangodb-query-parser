@@ -22,13 +22,20 @@ class Tester {
 
 	@test('should parse more complex query')
 	generalParse2() {
-		const parser = new ArangoDbQueryParser();
+		const parser = new ArangoDbQueryParser({ collection: 'documents' });
 		const parsed = parser.parse('timestamp>2017-10-01&timestamp<2020-01-01&author.firstName=/frederick/i&limit=100,50&sort=-timestamp&fields=name');
-		assert.strictEqual(parsed.filter.filters, 'FILTER o.timestamp > @timestamp AND o.timestamp < @timestamp AND o.author.firstName =~ @author_firstName');
+		assert.strictEqual(parsed.filter.filters, 'FILTER o.timestamp > @timestamp AND o.timestamp < @timestamp_2 AND o.author.firstName =~ @author_firstName');
+		assert.isOk(parsed.filter.bindVars['timestamp'] == '2017-10-01');
+		assert.isOk(parsed.filter.bindVars['timestamp_2'] == '2020-01-01');
 		assert.isOk(parsed.filter.bindVars['author_firstName'] instanceof RegExp);
 		assert.isOk(parsed.limit == 'LIMIT 50, 100');
 		assert.isNotNull(parsed.sort);
 		assert.isNotNull(parsed.fields);
+		const query = parser.createQuery(parsed);
+		assert.equal(
+			query,
+			'FOR o IN documents FILTER o.timestamp > @timestamp AND o.timestamp < @timestamp_2 AND o.author.firstName =~ @author_firstName SORT o.timestamp DESC LIMIT 50, 100 RETURN { name: o.name }'
+		);
 	}
 
 	@test('should parse built in casters')
@@ -259,7 +266,9 @@ class Tester {
 	@test('should parse date shortcuts')
 	parseDateShortcuts1() {
 		const parser = new ArangoDbQueryParser({ collection: 'deals' });
-		const parsed = parser.parse('thisYearStarts=date(startOfYear)&thisYearEnds=date(endOfYear)&thisMonthStarts=date(startOfMonth)&thisMonthEnds=date(endOfMonth)&thisQuarterStarts=date(startOfQuarter)&thisQuarterEnds=date(endOfQuarter)');
+		const parsed = parser.parse(
+			'thisYearStarts=date(startOfYear)&thisYearEnds=date(endOfYear)&thisMonthStarts=date(startOfMonth)&thisMonthEnds=date(endOfMonth)&thisQuarterStarts=date(startOfQuarter)&thisQuarterEnds=date(endOfQuarter)'
+		);
 		const query = parser.createQuery(parsed);
 		assert.equal(
 			query,
@@ -270,7 +279,9 @@ class Tester {
 	@test('should parse date shortcuts with modifiers')
 	parseDateShortcuts2() {
 		const parser = new ArangoDbQueryParser({ collection: 'deals' });
-		const parsed = parser.parse('previousYearStarts=date(startOfYear:-1)&previousYearEnds=date(endOfYear:-1)&nextMonthStarts=date(startOfMonth:1)&nextMonthEnds=date(endOfMonth:1)');
+		const parsed = parser.parse(
+			'previousYearStarts=date(startOfYear:-1)&previousYearEnds=date(endOfYear:-1)&nextMonthStarts=date(startOfMonth:1)&nextMonthEnds=date(endOfMonth:1)'
+		);
 		const query = parser.createQuery(parsed);
 		assert.equal(
 			query,

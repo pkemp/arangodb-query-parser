@@ -245,7 +245,15 @@ export class ArangoDbQueryParser {
 				.filter(({ key }) => options.blacklist.indexOf(key) === -1)
 				// eslint-disable-next-line @typescript-eslint/no-unused-vars
 				.reduce((result, { prefix, key, op, value }) => {
-					const bindVar = key.replace(/\./g, '_');
+					let bindVar = key.replace(/\./g, '_');
+					result.bindVars = !result.bindVars ? {} : result.bindVars;
+					if (result.bindVars[bindVar]) {
+						let varPos = 2;
+						while (result.bindVars[bindVar + '_' + varPos]) {
+							varPos++;
+						}
+						bindVar = bindVar + '_' + varPos;
+					}
 					if (Array.isArray(value)) {
 						op = op == '!=' ? 'NOT IN' : 'IN';
 					} else if (value instanceof RegExp) {
@@ -257,7 +265,6 @@ export class ArangoDbQueryParser {
 					} else {
 						result.filters += 'o.' + key + ' ' + op + ' @' + bindVar;
 					}
-					result.bindVars = !result.bindVars ? {} : result.bindVars;
 					result.bindVars[bindVar] = value;
 
 					return result;
