@@ -92,6 +92,14 @@ class Tester {
 		assert.equal(query, 'FOR o IN documents FILTER o.topLevel.secondLevel.thirdLevel == @topLevel_secondLevel_thirdLevel RETURN o');
 	}
 
+	@test('should create equal query for array filters')
+	parseQuery4() {
+		const parser = new ArangoDbQueryParser({ collection: 'events' });
+		const parsed = parser.parse('categories?=party&location#=online&types*=fun');
+		const query = parser.createQuery(parsed);
+		assert.equal(query, 'FOR o IN events FILTER o.categories ANY == @categories AND o.location NONE == @location AND o.types ALL == @types RETURN o');
+	}
+
 	@test('should create query only for whitelisted fields')
 	parseQueryWhiteList() {
 		const parser = new ArangoDbQueryParser({ collection: 'users', whitelist: ['firstName', 'lastName'] });

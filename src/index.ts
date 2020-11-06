@@ -238,7 +238,7 @@ export class ArangoDbQueryParser {
 				.map(val => {
 					const join = params[val] ? `${val}=${params[val]}` : val;
 					// Separate key, operators and value
-					const [, prefix, key, op, value] = join.match(/(!?)([^><!=]+)([><=]=?|!?=|)(.*)/);
+					const [, prefix, key, op, value] = join.match(/(!?)([^><!=\?\*#]+)([><=\?\*#]=?|!?=|)(.*)/);
 					return { prefix, key, op: this.parseOperator(op), value: this.parseValue(value, key) };
 				})
 				.filter(({ key }) => !options.whitelist || options.whitelist.indexOf(key) > -1)
@@ -262,6 +262,12 @@ export class ArangoDbQueryParser {
 					result.filters = typeof result.filters == 'string' ? result.filters + ' AND ' : 'FILTER ';
 					if (op == '===') {
 						result.filters += 'o.' + key + ' == TO_STRING(@' + bindVar + ')';
+					} else if (op == '?=') {
+						result.filters += 'o.' + key + ' ANY == @' + bindVar;
+					} else if (op == '*=') {
+						result.filters += 'o.' + key + ' ALL == @' + bindVar;
+					} else if (op == '#=') {
+						result.filters += 'o.' + key + ' NONE == @' + bindVar;
 					} else {
 						result.filters += 'o.' + key + ' ' + op + ' @' + bindVar;
 					}
@@ -298,6 +304,12 @@ export class ArangoDbQueryParser {
 			return '<';
 		} else if (operator === '<=') {
 			return '<=';
+		} else if (operator === '?=') {
+			return '?=';
+		} else if (operator === '*=') {
+			return '*=';
+		} else if (operator === '#=') {
+			return '#=';
 		} else if (!operator) {
 			return '!';
 		}

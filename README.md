@@ -87,6 +87,9 @@ Other signs for number and date fields:
 ?price<1000      // price is larger than 1000
 ?price!=1000     // price is not 1000
 ?price>=1000     // price is larger or equal to 1000
+?categories?=party // categories array includes party (any)
+?categories*=party // categories array includes party (all)
+?categories#=party // categories array does not include party (none)
 ```
 
 
