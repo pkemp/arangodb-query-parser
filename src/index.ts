@@ -254,13 +254,14 @@ export class ArangoDbQueryParser {
 						}
 						bindVar = bindVar + '_' + varPos;
 					}
-					if (Array.isArray(value)) {
-						op = op == '!=' ? 'NOT IN' : 'IN';
-					} else if (value instanceof RegExp) {
-						op = op == '!=' ? '!~' : '=~';
-					}
 					result.filters = typeof result.filters == 'string' ? result.filters + ' AND ' : 'FILTER ';
-					if (op == '===') {
+					if (value instanceof RegExp) {
+						op = op == '!=' ? '!~' : '=~';
+						result.filters += 'REGEX_TEST(o.' + key + ', @' + bindVar + ', ' + (value.ignoreCase == true) + ')';
+						value = value.source;
+					} else if (Array.isArray(value)) {
+						op = op == '!=' ? 'NOT IN' : 'IN';
+					} else if (op == '===') {
 						result.filters += 'o.' + key + ' == TO_STRING(@' + bindVar + ')';
 					} else if (op == '?=') {
 						result.filters += 'o.' + key + ' ANY == @' + bindVar;

@@ -16,25 +16,31 @@ class Tester {
 		assert.isNotNull(parsed.filter);
 		assert.isOk(parsed.filter.bindVars['boolean'] === true);
 		assert.isOk(parsed.filter.bindVars['integer'] === 10);
-		assert.isOk(parsed.filter.bindVars['regexp'] instanceof RegExp);
+		assert.isOk(parsed.filter.bindVars['regexp'] == 'foobar');
 		assert.isOk(parsed.filter.bindVars['null'] === null);
 	}
 
 	@test('should parse more complex query')
 	generalParse2() {
 		const parser = new ArangoDbQueryParser({ collection: 'documents' });
-		const parsed = parser.parse('timestamp>2017-10-01&timestamp<2020-01-01&author.firstName=/frederick/i&limit=100,50&sort=-timestamp&fields=name');
-		assert.strictEqual(parsed.filter.filters, 'FILTER o.timestamp > @timestamp AND o.timestamp < @timestamp_2 AND o.author.firstName =~ @author_firstName');
+		const parsed = parser.parse(
+			'timestamp>2017-10-01&timestamp<2020-01-01&author.firstName=/frederick/i&author.lastName=/Durst/&limit=100,50&sort=-timestamp&fields=name'
+		);
+		assert.strictEqual(
+			parsed.filter.filters,
+			'FILTER o.timestamp > @timestamp AND o.timestamp < @timestamp_2 AND REGEX_TEST(o.author.firstName, @author_firstName, true) AND REGEX_TEST(o.author.lastName, @author_lastName, false)'
+		);
 		assert.isOk(parsed.filter.bindVars['timestamp'] == '2017-10-01');
 		assert.isOk(parsed.filter.bindVars['timestamp_2'] == '2020-01-01');
-		assert.isOk(parsed.filter.bindVars['author_firstName'] instanceof RegExp);
+		assert.isOk(parsed.filter.bindVars['author_firstName'] == 'frederick');
+		assert.isOk(parsed.filter.bindVars['author_lastName'] == 'Durst');
 		assert.isOk(parsed.limit == 'LIMIT 50, 100');
 		assert.isNotNull(parsed.sort);
 		assert.isNotNull(parsed.fields);
 		const query = parser.createQuery(parsed);
 		assert.equal(
 			query,
-			'FOR o IN documents FILTER o.timestamp > @timestamp AND o.timestamp < @timestamp_2 AND o.author.firstName =~ @author_firstName SORT o.timestamp DESC LIMIT 50, 100 RETURN { name: o.name }'
+			'FOR o IN documents FILTER o.timestamp > @timestamp AND o.timestamp < @timestamp_2 AND REGEX_TEST(o.author.firstName, @author_firstName, true) AND REGEX_TEST(o.author.lastName, @author_lastName, false) SORT o.timestamp DESC LIMIT 50, 100 RETURN { name: o.name }'
 		);
 	}
 
