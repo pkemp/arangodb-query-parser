@@ -84,7 +84,7 @@ Value can be a regular expression:
 Other signs for number and date fields:
 
 ```
-?price<1000      // price is larger than 1000
+?price<1000      // price is less than 1000
 ?price!=1000     // price is not 1000
 ?price>=1000     // price is larger or equal to 1000
 ?categories?=party // categories array includes party (any)
@@ -92,6 +92,11 @@ Other signs for number and date fields:
 ?categories#=party // categories array does not include party (none)
 ```
 
+Filters are excluding by default (AND): you can create OR by adding exclamation mark in front of the field name:
+
+```
+?price<1000&!price>1500      // price is less than 1000 or larger than 1500
+```
 
 #### Fields
 Result fields can be specified in the format:
