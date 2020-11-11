@@ -24,11 +24,11 @@ class Tester {
 	generalParse2() {
 		const parser = new ArangoDbQueryParser({ collection: 'documents' });
 		const parsed = parser.parse(
-			'timestamp>2017-10-01&timestamp<2020-01-01&author.firstName=/frederick/i&author.lastName=/Durst/&limit=100,50&sort=-timestamp&fields=name'
+			'!timestamp>2017-10-01&!timestamp<2020-01-01&!author.firstName=/frederick/i&author.lastName=/Durst/&limit=100,50&sort=-timestamp&fields=name'
 		);
 		assert.strictEqual(
 			parsed.filter.filters,
-			'FILTER o.timestamp > @timestamp AND o.timestamp < @timestamp_2 AND REGEX_TEST(o.author.firstName, @author_firstName, true) AND REGEX_TEST(o.author.lastName, @author_lastName, false)'
+			'FILTER o.timestamp > @timestamp OR o.timestamp < @timestamp_2 OR REGEX_TEST(o.author.firstName, @author_firstName, true) AND REGEX_TEST(o.author.lastName, @author_lastName, false)'
 		);
 		assert.isOk(parsed.filter.bindVars['timestamp'] == '2017-10-01');
 		assert.isOk(parsed.filter.bindVars['timestamp_2'] == '2020-01-01');
@@ -40,7 +40,7 @@ class Tester {
 		const query = parser.createQuery(parsed);
 		assert.equal(
 			query,
-			'FOR o IN documents FILTER o.timestamp > @timestamp AND o.timestamp < @timestamp_2 AND REGEX_TEST(o.author.firstName, @author_firstName, true) AND REGEX_TEST(o.author.lastName, @author_lastName, false) SORT o.timestamp DESC LIMIT 50, 100 RETURN { name: o.name }'
+			'FOR o IN documents FILTER o.timestamp > @timestamp OR o.timestamp < @timestamp_2 OR REGEX_TEST(o.author.firstName, @author_firstName, true) AND REGEX_TEST(o.author.lastName, @author_lastName, false) SORT o.timestamp DESC LIMIT 50, 100 RETURN { name: o.name }'
 		);
 	}
 

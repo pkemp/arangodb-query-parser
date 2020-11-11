@@ -254,7 +254,7 @@ export class ArangoDbQueryParser {
 						}
 						bindVar = bindVar + '_' + varPos;
 					}
-					result.filters = typeof result.filters == 'string' ? result.filters + ' AND ' : 'FILTER ';
+					result.filters = typeof result.filters == 'string' ? result.filters + (prefix == '!' ? ' OR ' : ' AND ') : 'FILTER ';
 					if (value instanceof RegExp) {
 						op = op == '!=' ? '!~' : '=~';
 						result.filters += 'REGEX_TEST(o.' + key + ', @' + bindVar + ', ' + (value.ignoreCase == true) + ')';
