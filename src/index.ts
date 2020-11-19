@@ -261,6 +261,7 @@ export class ArangoDbQueryParser {
 						value = value.source;
 					} else if (Array.isArray(value)) {
 						op = op == '!=' ? 'NOT IN' : 'IN';
+						result.filters += 'o.' + key + ' ' + op + ' @' + bindVar;
 					} else if (op == '===') {
 						result.filters += 'o.' + key + ' == TO_STRING(@' + bindVar + ')';
 					} else if (op == '?=') {

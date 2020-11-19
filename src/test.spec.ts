@@ -106,6 +106,14 @@ class Tester {
 		assert.equal(query, 'FOR o IN events FILTER o.categories ANY == @categories AND o.location NONE == @location AND o.types ALL == @types RETURN o');
 	}
 
+	@test('should create equal query for array filter value')
+	parseQuery5() {
+		const parser = new ArangoDbQueryParser({ collection: 'events' });
+		const parsed = parser.parse('categories=party,meeting,concert');
+		const query = parser.createQuery(parsed);
+		assert.equal(query, 'FOR o IN events FILTER o.categories IN @categories RETURN o');
+	}
+
 	@test('should create query only for whitelisted fields')
 	parseQueryWhiteList() {
 		const parser = new ArangoDbQueryParser({ collection: 'users', whitelist: ['firstName', 'lastName'] });
