@@ -24,7 +24,7 @@ class Tester {
 	generalParse2() {
 		const parser = new ArangoDbQueryParser({ collection: 'documents' });
 		const parsed = parser.parse(
-			'!timestamp>2017-10-01&!timestamp<2020-01-01&!author.firstName=/frederick/i&author.lastName=/Durst/&limit=100,50&sort=-timestamp&fields=name'
+			'|timestamp>2017-10-01&|timestamp<2020-01-01&|author.firstName=/frederick/i&author.lastName=/Durst/&limit=100,50&sort=-timestamp&fields=name'
 		);
 		assert.strictEqual(
 			parsed.filter.filters,
@@ -112,6 +112,14 @@ class Tester {
 		const parsed = parser.parse('categories=party,meeting,concert');
 		const query = parser.createQuery(parsed);
 		assert.equal(query, 'FOR o IN events FILTER o.categories IN @categories RETURN o');
+	}
+
+	@test('should create equal query for empty filter value')
+	parseQuery6() {
+		const parser = new ArangoDbQueryParser({ collection: 'events' });
+		const parsed = parser.parse('categories=');
+		const query = parser.createQuery(parsed);
+		assert.equal(query, 'FOR o IN events FILTER o.categories == @categories RETURN o');
 	}
 
 	@test('should create query only for whitelisted fields')

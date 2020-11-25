@@ -238,7 +238,7 @@ export class ArangoDbQueryParser {
 				.map(val => {
 					const join = params[val] ? `${val}=${params[val]}` : val;
 					// Separate key, operators and value
-					const [, prefix, key, op, value] = join.match(/(!?)([^><!=\?\*#]+)([><=\?\*#]=?|!?=|)(.*)/);
+					const [, prefix, key, op, value] = join.match(/([|!]?)([^><!=\?\*#]+)([><=\?\*#]=?|!?=|)(.*)/);
 					return { prefix, key, op: this.parseOperator(op), value: this.parseValue(value, key) };
 				})
 				.filter(({ key }) => !options.whitelist || options.whitelist.indexOf(key) > -1)
@@ -254,7 +254,7 @@ export class ArangoDbQueryParser {
 						}
 						bindVar = bindVar + '_' + varPos;
 					}
-					result.filters = typeof result.filters == 'string' ? result.filters + (prefix == '!' ? ' OR ' : ' AND ') : 'FILTER ';
+					result.filters = typeof result.filters == 'string' ? result.filters + (prefix == '|' ? ' OR ' : ' AND ') : 'FILTER ';
 					if (value instanceof RegExp) {
 						op = op == '!=' ? '!~' : '=~';
 						result.filters += 'REGEX_TEST(o.' + key + ', @' + bindVar + ', ' + (value.ignoreCase == true) + ')';
@@ -313,7 +313,7 @@ export class ArangoDbQueryParser {
 		} else if (operator === '#=') {
 			return '#=';
 		} else if (!operator) {
-			return '!';
+			return '==';
 		}
 	}
 
